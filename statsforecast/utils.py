@@ -274,6 +274,27 @@ def _repeat_val(val: float, h: int) -> np.ndarray:
     return np.full(h, val, np.float32)
 
 
+def _naive_stat(
+    y: np.ndarray,  # time series
+    h: int,  # forecasting horizon
+    fitted: bool,  # fitted values
+    stat: str='mean',
+    stat_window=None
+) -> Dict[str, np.ndarray]:
+    stat_window = len(y) if stat_window is None else stat_window
+    if stat == 'mean':
+        y_pred = np.mean(y[-stat_window:]).astype(float)
+    elif stat == 'median':
+        y_pred = np.median(y[-stat_window:]).astype(float)
+    else:
+        raise ValueError(f"stat must be one of ['mean', 'median']")
+
+    fcst = {"mean": _repeat_val(val=y_pred, h=h)}
+    if fitted:
+        fcst["fitted"] = _repeat_val(val=y_pred, h=len(y))
+    return fcst
+
+
 def _naive(
     y: np.ndarray,  # time series
     h: int,  # forecasting horizon

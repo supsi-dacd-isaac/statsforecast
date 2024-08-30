@@ -45,6 +45,7 @@ from statsforecast.utils import (
     _calculate_intervals,
     _ensure_float,
     _naive,
+    _naive_stat,
     _old_kw_to_pos,
     _quantiles,
     _repeat_val,
@@ -3080,6 +3081,106 @@ class Naive(_TS):
         )
         return res
 
+
+class StatNaive(Naive):
+
+    def __init__(
+        self,
+        alias: str = "Naive",
+        prediction_intervals: Optional[ConformalIntervals] = None,
+        step: Optional[int] = None,
+        stat_window: Optional[int] = None,
+        stat: Optional[str] = 'mean'
+    ):
+        self.stat_window = stat_window
+        self.stat = stat
+        super().__init__(alias=alias, prediction_intervals=prediction_intervals, step=step)
+
+    def fit(
+            self,
+            y: np.ndarray,
+            X: Optional[np.ndarray] = None,
+    ):
+        r"""Fit the Naive model.
+
+        Fit an Naive to a time series (numpy.array) `y`.
+
+        Parameters
+        ----------
+        y : numpy.array
+            Clean time series of shape (t, ).
+        X : array-like
+            Optional exogenous of shape (t, n_x).
+
+        Returns
+        -------
+        self:
+            Naive fitted model.
+        """
+        mod = _naive_stat(y, h=1, fitted=True, stat=self.stat, stat_window=self.stat_window)
+        mod = dict(mod)
+        residuals = y - mod["fitted"]
+        sigma = _calculate_sigma(residuals, len(residuals) - 1)
+        mod["sigma"] = sigma
+        self.model_ = mod
+        self._store_cs(y=y, X=X)
+        return self
+
+    def forecast(
+        self,
+        y: np.ndarray,
+        h: int,
+        X: Optional[np.ndarray] = None,
+        X_future: Optional[np.ndarray] = None,
+        level: Optional[List[int]] = None,
+        fitted: bool = False,
+    ):
+        r"""Memory Efficient Naive predictions.
+
+        This method avoids memory burden due from object storage.
+        It is analogous to `fit_predict` without storing information.
+        It assumes you know the forecast horizon in advance.
+
+        Parameters
+        ----------
+        y : numpy.array
+            Clean time series of shape (n,).
+        h: int
+            Forecast horizon.
+        X : array-like
+            Optional insample exogenous of shape (t, n_x).
+        X_future : array-like
+            Optional exogenous of shape (h, n_x).
+        level : List[float]
+            Confidence levels (0-100) for prediction intervals.
+        fitted : bool
+            Whether or not to return insample predictions.
+
+        Returns
+        -------
+        forecasts : dict
+            Dictionary with entries `mean` for point predictions and `level_*` for probabilistic predictions.
+        """
+        out = _naive_stat(y=y, h=h, fitted=fitted or (level is not None), stat=self.stat, stat_window=self.stat_window)
+        res = {"mean": out["mean"]}
+        if fitted:
+            res["fitted"] = out["fitted"]
+        if level is not None:
+            level = sorted(level)
+            if self.prediction_intervals is not None:
+                res = self._add_conformal_intervals(fcst=res, y=y, X=X, level=level)
+            else:
+                steps = np.arange(1, h + 1)
+                residuals = y - out["fitted"]
+                sigma = _calculate_sigma(residuals, len(residuals) - 1)
+                sigmah = sigma * np.sqrt(steps)
+                pred_int = _calculate_intervals(out, level, h, sigmah)
+                res = {**res, **pred_int}
+            if fitted:
+                residuals = y - out["fitted"]
+                sigma = _calculate_sigma(residuals, len(residuals) - 1)
+                res = _add_fitted_pi(res=res, se=sigma, level=level)
+        return res
 # %% ../nbs/src/core/models.ipynb 233
 def _random_walk_with_drift(
     y: np.ndarray,  # time series
