@@ -199,7 +199,7 @@ class _TS:
                 X_train = None
                 X_test = None
             fcst_window = self.forecast(h=h, y=y_train, X=X_train, X_future=X_test)  # type: ignore[attr-defined]
-            cs[i_window] = fcst_window["mean"] - y_test if error else np.abs(fcst_window["mean"] - y_test)
+            cs[i_window] = y_test - fcst_window["mean"] if error else np.abs(fcst_window["mean"] - y_test)
         return cs
 
     @property
@@ -2631,6 +2631,7 @@ class Holt(AutoETS):
         error_type: str = "A",
         alias: str = "Holt",
         prediction_intervals: Optional[ConformalIntervals] = None,
+        step: Optional[int] = None,
     ):
 
         self.season_length = season_length
@@ -2639,7 +2640,7 @@ class Holt(AutoETS):
         self.prediction_intervals = prediction_intervals
         model = error_type + "AN"
         super().__init__(
-            season_length, model, alias=alias, prediction_intervals=prediction_intervals
+            season_length, model, alias=alias, prediction_intervals=prediction_intervals, step=step
         )
 
 # %% ../nbs/src/core/models.ipynb 188
@@ -2673,13 +2674,14 @@ class HoltWinters(AutoETS):
         error_type: str = "A",  # error type
         alias: str = "HoltWinters",
         prediction_intervals: Optional[ConformalIntervals] = None,
+        step: Optional[int] = None,
     ):
         self.season_length = season_length
         self.error_type = error_type
         self.alias = alias
         model = error_type + "A" + error_type
         super().__init__(
-            season_length, model, alias=alias, prediction_intervals=prediction_intervals
+            season_length, model, alias=alias, prediction_intervals=prediction_intervals, step=step
         )
 
 # %% ../nbs/src/core/models.ipynb 203
